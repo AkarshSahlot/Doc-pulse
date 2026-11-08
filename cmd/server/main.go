@@ -15,6 +15,52 @@ import (
 	ghWebhooks "github.com/go-playground/webhooks/v6/github"
 )
 
+const landingPageHTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocPulse</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 640px;
+    margin: 4rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.6;
+  }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  .tag { color: #888; margin-top: 0; }
+  code {
+    background: rgba(127,127,127,0.15);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  ul { padding-left: 1.2rem; }
+  a { color: #3b82f6; }
+  footer { margin-top: 3rem; color: #888; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+  <h1>DocPulse</h1>
+  <p class="tag">A doc-sync agent: watches merged pull requests, figures out which docs are
+  affected by the code that changed, and uses an LLM to regenerate just the stale parts —
+  then opens a PR with the update for human review.</p>
+
+  <p>Routes on this server:</p>
+  <ul>
+    <li><code>GET /health</code> &mdash; service status</li>
+    <li><code>POST /webhook/github</code> &mdash; GitHub pull_request webhook endpoint</li>
+  </ul>
+
+  <p><a href="https://github.com/AkarshSahlot/Doc-pulse">Source on GitHub</a></p>
+
+  <footer>Running on Fly.io</footer>
+</body>
+</html>`
+
 func main() {
 	ctx := context.Background()
 
@@ -42,6 +88,10 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	r.GET("/", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(landingPageHTML))
+	})
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "docpulse"})
