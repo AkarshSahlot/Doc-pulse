@@ -9,9 +9,9 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	// Anthropic Claude settings
-	AnthropicAPIKey string
-	LLMModel        string
+	// Google Gemini settings
+	GeminiAPIKey string
+	LLMModel     string
 
 	// GitHub settings
 	GitHubWebhookSecret string
@@ -29,8 +29,8 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		AnthropicAPIKey:     os.Getenv("ANTHROPIC_API_KEY"),
-		LLMModel:            getEnvOrDefault("LLM_MODEL", "claude-sonnet-4-5"),
+		GeminiAPIKey:        os.Getenv("GEMINI_API_KEY"),
+		LLMModel:            getEnvOrDefault("LLM_MODEL", "gemini-2.5-flash-lite"),
 		GitHubWebhookSecret: os.Getenv("GITHUB_WEBHOOK_SECRET"),
 		ServerPort:          getEnvOrDefault("SERVER_PORT", "8080"),
 		MappingFile:         getEnvOrDefault("DOCPULSE_MAPPING_FILE", "docpulse.yaml"),
@@ -46,8 +46,8 @@ func MustLoadForCLI() (*Config, error) {
 		return nil, err
 	}
 
-	if cfg.AnthropicAPIKey == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY is required; set it in your environment or .env file")
+	if cfg.GeminiAPIKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY is required; set it in your environment or .env file")
 	}
 
 	return cfg, nil
@@ -60,8 +60,8 @@ func MustLoadForServer() (*Config, error) {
 		return nil, err
 	}
 
-	if cfg.AnthropicAPIKey == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY is required; set it in your environment or .env file")
+	if cfg.GeminiAPIKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY is required; set it in your environment or .env file")
 	}
 	if cfg.GitHubWebhookSecret == "" {
 		return nil, fmt.Errorf("GITHUB_WEBHOOK_SECRET is required for the webhook server")

@@ -64,7 +64,7 @@ directories), so you can be as broad or as specific as your repo needs.
          ├─────────────────┬─────────────────┐
          ▼                 ▼                 ▼
     ┌─────────┐      ┌──────────┐      ┌──────────┐
-    │ GitHub  │      │ Anthropic│      │ GitHub   │
+    │ GitHub  │      │ Gemini   │      │ GitHub   │
     │   API   │      │   API    │      │   API    │
     │         │      │          │      │          │
     │ Get diff│      │ Classify │      │ Create   │
@@ -81,7 +81,7 @@ directories), so you can be as broad or as specific as your repo needs.
    ```bash
    cp .env.example .env
    # then fill in:
-   export ANTHROPIC_API_KEY="sk-ant-..."
+   export GEMINI_API_KEY="..."
    export GITHUB_WEBHOOK_SECRET="your-webhook-secret"
    export GITHUB_TOKEN="ghp_..."
    export SERVER_PORT="8080"
@@ -261,7 +261,7 @@ would-be diff are logged, but nothing is written and no PR is opened.
 main()
 ├─ config.MustLoadForServer() → load env + .env
 ├─ mapping.Load(docpulse.yaml) → compile code→doc rules
-├─ llm.NewClient() → Anthropic client
+├─ llm.NewClient() → Gemini client
 ├─ vcs.NewWebhookHandler() → wire mapping + LLM client + dry-run flag
 ├─ Setup Gin router
 │  ├─ GET /health
@@ -313,10 +313,10 @@ DocsFor(path) / DocsForAll(paths)
 
 ```go
 ClassifyChange(codeContext)
-└─ Anthropic Messages API → "YES"/"NO" + one-line reason
+└─ Gemini generateContent API → "YES"/"NO" + one-line reason
 
 UpdateDocumentation(codeContext, docContent)
-└─ Anthropic Messages API → full regenerated doc, extracted from <updated_doc> tags
+└─ Gemini generateContent API → full regenerated doc, extracted from <updated_doc> tags
 ```
 
 ## CLI
@@ -378,10 +378,10 @@ internal/
 
 | Variable | Required | Description |
 |----------|----------|--------------|
-| `ANTHROPIC_API_KEY` | Yes | Anthropic Claude API key |
+| `GEMINI_API_KEY` | Yes | Google Gemini API key (free at https://aistudio.google.com/apikey) |
 | `GITHUB_WEBHOOK_SECRET` | Yes (server) | Secret for webhook signature validation |
 | `GITHUB_TOKEN` | Yes (server) | GitHub personal access token (for API calls) |
-| `LLM_MODEL` | No | Model to use (default: `claude-sonnet-4-5`) |
+| `LLM_MODEL` | No | Model to use (default: `gemini-2.5-flash-lite`) |
 | `SERVER_PORT` | No | Port to listen on (default: `8080`) |
 | `DOCPULSE_MAPPING_FILE` | No | Path to the mapping config (default: `docpulse.yaml`) |
 | `DOCPULSE_DRY_RUN` | No | When `true`, classify and log without writing or opening PRs |
@@ -403,7 +403,7 @@ internal/
 - ✅ Check `DOCPULSE_DRY_RUN` isn't accidentally set to `true`
 
 ### LLM errors
-- ✅ Verify `ANTHROPIC_API_KEY` is valid
+- ✅ Verify `GEMINI_API_KEY` is valid
 - ✅ Check API quota/rate limits
 - ✅ Verify `LLM_MODEL` name is correct
 

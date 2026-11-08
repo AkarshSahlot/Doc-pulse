@@ -28,7 +28,7 @@ func main() {
 		log.Fatalf("failed to load mapping file: %v", err)
 	}
 
-	llmClient, err := llm.NewClient(ctx, cfg.AnthropicAPIKey, cfg.LLMModel)
+	llmClient, err := llm.NewClient(ctx, cfg.GeminiAPIKey, cfg.LLMModel)
 	if err != nil {
 		log.Fatalf("failed to create LLM client: %v", err)
 	}

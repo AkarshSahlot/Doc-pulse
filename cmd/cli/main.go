@@ -106,7 +106,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	llmClient, err := llm.NewClient(ctx, cfg.AnthropicAPIKey, cfg.LLMModel)
+	llmClient, err := llm.NewClient(ctx, cfg.GeminiAPIKey, cfg.LLMModel)
 	if err != nil {
 		return fmt.Errorf("failed to create LLM client: %w", err)
 	}
