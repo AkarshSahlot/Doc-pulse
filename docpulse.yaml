@@ -1,0 +1,20 @@
+mappings:
+  - code: "internal/**/*.go"
+    docs:
+      - "README.md"
+    reason: "internal package change"
+
+  - code: "cmd/**/*.go"
+    docs:
+      - "README.md"
+    reason: "CLI/server entrypoint change"
+
+  - code: "**/*.go"
+    docs:
+      - "CHANGELOG.md"
+    reason: "default catch-all for any Go source change"
+
+  - code: "**/openapi.*"
+    docs:
+      - "docs/api.md"
+    reason: "OpenAPI spec changed"
