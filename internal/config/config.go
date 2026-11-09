@@ -21,6 +21,9 @@ type Config struct {
 
 	// MappingFile points at the YAML file describing which docs track which code paths.
 	MappingFile string
+
+	// DataFile points at the JSON file used to persist the dashboard's event log.
+	DataFile string
 }
 
 // Load reads configuration from environment variables and an optional .env file.
@@ -34,6 +37,7 @@ func Load() (*Config, error) {
 		GitHubWebhookSecret: os.Getenv("GITHUB_WEBHOOK_SECRET"),
 		ServerPort:          getEnvOrDefault("SERVER_PORT", "8080"),
 		MappingFile:         getEnvOrDefault("DOCPULSE_MAPPING_FILE", "docpulse.yaml"),
+		DataFile:            getEnvOrDefault("DOCPULSE_DATA_FILE", "docpulse_data.json"),
 	}
 
 	return cfg, nil

@@ -364,15 +364,26 @@ ngrok http 8080
 
 ```
 cmd/
-  server/   webhook server entrypoint
+  server/   webhook server entrypoint + dashboard (dashboard.html)
   cli/      local sync/map commands
 internal/
   config/   environment + .env loading
   mapping/  docpulse.yaml parsing and glob matching
   analyzer/ changed-file classification (code vs. non-code)
   vcs/      GitHub API client + webhook handler
-  llm/      Claude client and prompts
+  llm/      Gemini client and prompts
+  store/    JSON-file-backed log of sync events, shown on the dashboard
+  demo/     fixed sample code/doc pair used by the dashboard's "Run demo sync" button
 ```
+
+## Dashboard
+
+The server's root route (`GET /`) serves a small dashboard showing recent sync
+activity (read from `GET /api/events`) and a "Run demo sync" button
+(`POST /api/demo-sync`) that runs a real classify + regenerate call against a
+fixed sample code change — useful for demonstrating the pipeline without a
+real GitHub webhook. Event history persists to `DOCPULSE_DATA_FILE` (a JSON
+file) so it survives restarts.
 
 ## Environment Variables Reference
 
@@ -385,6 +396,7 @@ internal/
 | `SERVER_PORT` | No | Port to listen on (default: `8080`) |
 | `DOCPULSE_MAPPING_FILE` | No | Path to the mapping config (default: `docpulse.yaml`) |
 | `DOCPULSE_DRY_RUN` | No | When `true`, classify and log without writing or opening PRs |
+| `DOCPULSE_DATA_FILE` | No | Path to the dashboard's event log JSON file (default: `docpulse_data.json`) |
 
 ## Troubleshooting
 

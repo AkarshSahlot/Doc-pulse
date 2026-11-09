@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocPulse</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --border: #e2e2e2;
+    --bg-soft: rgba(127,127,127,0.08);
+    --accent: #3b82f6;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --err: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #f0f0f0; --muted: #999; --border: #333; --bg-soft: rgba(255,255,255,0.06); }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 780px;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.6;
+    color: var(--fg);
+    background: Canvas;
+  }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  .tag { color: var(--muted); margin-top: 0; }
+  code {
+    background: var(--bg-soft);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  a { color: var(--accent); }
+  section { margin-top: 2.5rem; }
+  h2 { font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+  button {
+    font: inherit;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  #demo-result { margin-top: 1rem; }
+  .pill {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15em 0.6em;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .pill.pr_created, .pill.ok { background: rgba(22,163,74,0.15); color: var(--ok); }
+  .pill.dry_run { background: rgba(217,119,6,0.15); color: var(--warn); }
+  .pill.skipped { background: var(--bg-soft); color: var(--muted); }
+  .pill.error { background: rgba(220,38,38,0.15); color: var(--err); }
+
+  .event {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .event-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .event-doc { font-weight: 600; }
+  .event-meta { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+  .event-reason { margin-top: 0.4rem; font-size: 0.9rem; }
+  details { margin-top: 0.5rem; }
+  summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }
+  pre {
+    background: var(--bg-soft);
+    padding: 0.75rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+  }
+  #empty { color: var(--muted); font-style: italic; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+  <h1>DocPulse</h1>
+  <p class="tag">A doc-sync agent: watches merged pull requests, figures out which docs are
+  affected by the code that changed, and uses an LLM to regenerate just the stale parts —
+  then opens a PR with the update for human review.</p>
+
+  <p>
+    <code>GET /health</code> &middot;
+    <code>POST /webhook/github</code> &middot;
+    <a href="https://github.com/AkarshSahlot/Doc-pulse">source on GitHub</a>
+  </p>
+
+  <section>
+    <h2>Try it live</h2>
+    <p>Runs a real classify + regenerate call through the LLM against a sample code change
+    (no GitHub webhook required).</p>
+    <button id="demo-btn" onclick="runDemo()">Run demo sync</button>
+    <div id="demo-result"></div>
+  </section>
+
+  <section>
+    <h2>Recent activity</h2>
+    <div id="events"><p id="empty">Loading…</p></div>
+  </section>
+
+  <footer>Running on Fly.io</footer>
+
+<script>
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function statusLabel(e) {
+  if (e.status === "pr_created") return "PR opened";
+  if (e.status === "dry_run") return "Would update";
+  if (e.status === "skipped") return "No change needed";
+  if (e.status === "error") return "Error";
+  return e.status || "unknown";
+}
+
+function renderEvent(e) {
+  const when = new Date(e.timestamp).toLocaleString();
+  const source = e.source === "demo" ? "demo" : (e.repo ? `PR #${e.pr_number} on ${escapeHtml(e.repo)}` : "webhook");
+  let extra = "";
+  if (e.pr_url) {
+    extra = `<p class="event-reason"><a href="${escapeHtml(e.pr_url)}" target="_blank" rel="noopener">View opened PR →</a></p>`;
+  } else if (e.error) {
+    extra = `<p class="event-reason">${escapeHtml(e.error)}</p>`;
+  } else if (e.reason) {
+    extra = `<p class="event-reason">${escapeHtml(e.reason)}</p>`;
+  }
+  const diff = e.updated_doc
+    ? `<details><summary>View regenerated doc</summary><pre>${escapeHtml(e.updated_doc)}</pre></details>`
+    : "";
+
+  return `<div class="event">
+    <div class="event-top">
+      <span class="event-doc">${escapeHtml(e.doc_path)}</span>
+      <span class="pill ${escapeHtml(e.status)}">${statusLabel(e)}</span>
+    </div>
+    <div class="event-meta">${when} &middot; ${source}</div>
+    ${extra}
+    ${diff}
+  </div>`;
+}
+
+async function loadEvents() {
+  try {
+    const res = await fetch("/api/events");
+    const data = await res.json();
+    const el = document.getElementById("events");
+    if (!data || data.length === 0) {
+      el.innerHTML = '<p id="empty">No sync activity yet — merge a PR that touches a mapped file, or click "Run demo sync" above.</p>';
+      return;
+    }
+    el.innerHTML = data.map(renderEvent).join("");
+  } catch (e) {
+    document.getElementById("events").innerHTML = '<p id="empty">Failed to load activity.</p>';
+  }
+}
+
+async function runDemo() {
+  const btn = document.getElementById("demo-btn");
+  const result = document.getElementById("demo-result");
+  btn.disabled = true;
+  btn.textContent = "Running…";
+  result.innerHTML = "";
+  try {
+    const res = await fetch("/api/demo-sync", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      result.innerHTML = `<p class="event-reason">${escapeHtml(data.error || "request failed")}</p>`;
+    } else {
+      result.innerHTML = renderEvent(data);
+    }
+    loadEvents();
+  } catch (e) {
+    result.innerHTML = '<p class="event-reason">Request failed.</p>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run demo sync";
+  }
+}
+
+loadEvents();
+</script>
+</body>
+</html>

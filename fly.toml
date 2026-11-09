@@ -9,7 +9,12 @@ primary_region = 'nrt'
 [build]
 [env]
   DOCPULSE_MAPPING_FILE = 'docpulse.yaml'
+  DOCPULSE_DATA_FILE = '/data/docpulse_data.json'
   SERVER_PORT = '8080'
+
+[[mounts]]
+  source = 'docpulse_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080

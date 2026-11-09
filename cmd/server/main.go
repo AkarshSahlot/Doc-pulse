@@ -2,64 +2,28 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/AkarshSahlot/docpulse/internal/config"
+	"github.com/AkarshSahlot/docpulse/internal/demo"
 	"github.com/AkarshSahlot/docpulse/internal/llm"
 	"github.com/AkarshSahlot/docpulse/internal/mapping"
+	"github.com/AkarshSahlot/docpulse/internal/store"
 	"github.com/AkarshSahlot/docpulse/internal/vcs"
 	"github.com/gin-gonic/gin"
 	ghWebhooks "github.com/go-playground/webhooks/v6/github"
 )
 
-const landingPageHTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DocPulse</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    max-width: 640px;
-    margin: 4rem auto;
-    padding: 0 1.5rem;
-    line-height: 1.6;
-  }
-  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
-  .tag { color: #888; margin-top: 0; }
-  code {
-    background: rgba(127,127,127,0.15);
-    padding: 0.15em 0.4em;
-    border-radius: 4px;
-    font-size: 0.9em;
-  }
-  ul { padding-left: 1.2rem; }
-  a { color: #3b82f6; }
-  footer { margin-top: 3rem; color: #888; font-size: 0.85rem; }
-</style>
-</head>
-<body>
-  <h1>DocPulse</h1>
-  <p class="tag">A doc-sync agent: watches merged pull requests, figures out which docs are
-  affected by the code that changed, and uses an LLM to regenerate just the stale parts —
-  then opens a PR with the update for human review.</p>
+//go:embed dashboard.html
+var dashboardHTML string
 
-  <p>Routes on this server:</p>
-  <ul>
-    <li><code>GET /health</code> &mdash; service status</li>
-    <li><code>POST /webhook/github</code> &mdash; GitHub pull_request webhook endpoint</li>
-  </ul>
-
-  <p><a href="https://github.com/AkarshSahlot/Doc-pulse">Source on GitHub</a></p>
-
-  <footer>Running on Fly.io</footer>
-</body>
-</html>`
+const demoCooldown = 10 * time.Second
 
 func main() {
 	ctx := context.Background()
@@ -79,8 +43,10 @@ func main() {
 		log.Fatalf("failed to create LLM client: %v", err)
 	}
 
+	events := store.New(cfg.DataFile, 200)
+
 	dryRun := os.Getenv("DOCPULSE_DRY_RUN") == "true"
-	handler := vcs.NewWebhookHandler(llmClient, rules, dryRun)
+	handler := vcs.NewWebhookHandler(llmClient, rules, dryRun, events)
 
 	hook, err := ghWebhooks.New(ghWebhooks.Options.Secret(cfg.GitHubWebhookSecret))
 	if err != nil {
@@ -90,11 +56,33 @@ func main() {
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(landingPageHTML))
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(dashboardHTML))
 	})
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "docpulse"})
+	})
+
+	r.GET("/api/events", func(c *gin.Context) {
+		c.JSON(http.StatusOK, events.List())
+	})
+
+	var demoMu sync.Mutex
+	var lastDemo time.Time
+
+	r.POST("/api/demo-sync", func(c *gin.Context) {
+		demoMu.Lock()
+		if wait := demoCooldown - time.Since(lastDemo); wait > 0 {
+			demoMu.Unlock()
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": fmt.Sprintf("try again in %.0fs", wait.Seconds())})
+			return
+		}
+		lastDemo = time.Now()
+		demoMu.Unlock()
+
+		evt := runDemoSync(c.Request.Context(), llmClient)
+		events.Add(evt)
+		c.JSON(http.StatusOK, evt)
 	})
 
 	r.POST("/webhook/github", func(c *gin.Context) {
@@ -122,6 +110,39 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+// runDemoSync runs a real classify+generate call against a fixed sample
+// code/doc pair, so the dashboard can demonstrate the pipeline live without
+// a real GitHub webhook.
+func runDemoSync(ctx context.Context, llmClient *llm.Client) store.Event {
+	evt := store.Event{Source: "demo", DocPath: demo.DocPath}
+
+	needsUpdate, reason, err := llmClient.ClassifyChange(ctx, demo.SampleCodeContext)
+	if err != nil {
+		evt.Status = "error"
+		evt.Error = err.Error()
+		return evt
+	}
+	evt.NeedsUpdate = needsUpdate
+	evt.Reason = reason
+
+	if !needsUpdate {
+		evt.Status = "skipped"
+		return evt
+	}
+
+	updatedDoc, err := llmClient.UpdateDocumentation(ctx, demo.SampleCodeContext, demo.SampleDoc)
+	if err != nil {
+		evt.Status = "error"
+		evt.Error = err.Error()
+		return evt
+	}
+
+	evt.Status = "dry_run"
+	evt.DryRun = true
+	evt.UpdatedDoc = updatedDoc
+	return evt
 }
 
 func handlePullRequestEvent(c *gin.Context, payload ghWebhooks.PullRequestPayload, handler *vcs.WebhookHandler) {
@@ -154,7 +175,7 @@ func handlePullRequestEvent(c *gin.Context, payload ghWebhooks.PullRequestPayloa
 		owner, repo := parseRepoFullName(repoFullName)
 		client := vcs.NewClient(githubToken, owner, repo)
 
-		if err := handler.HandleMergedPR(ctx, client, prNumber, baseBranch); err != nil {
+		if err := handler.HandleMergedPR(ctx, client, repoFullName, prNumber, baseBranch); err != nil {
 			log.Printf("[docpulse] error processing PR #%d: %v", prNumber, err)
 		} else {
 			log.Printf("[docpulse] finished processing PR #%d", prNumber)
