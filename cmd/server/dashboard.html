@@ -22,15 +22,81 @@
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    max-width: 780px;
-    margin: 3rem auto;
-    padding: 0 1.5rem;
+    margin: 0;
     line-height: 1.6;
     color: var(--fg);
     background: Canvas;
   }
-  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
-  .tag { color: var(--muted); margin-top: 0; }
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #fff;
+    padding: 3rem 1.5rem;
+    background: linear-gradient(136deg, #86E3CE, #D0E6A5, #FFDD94, #FA897B, #CCABD8, #ecf0f1);
+    background-size: 1200% 1200%;
+    animation: bgShift 70s ease infinite;
+  }
+  @keyframes bgShift {
+    0%   { background-position: 0% 7%; }
+    50%  { background-position: 100% 94%; }
+    100% { background-position: 0% 7%; }
+  }
+  #stars, #stars::after {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1px; height: 1px;
+    background: transparent;
+  }
+  #stars { animation: animStar 60s linear infinite; }
+  @keyframes animStar {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-900px); }
+  }
+
+  .hero h1 { font-size: 2.75rem; margin: 0 0 0.75rem; font-weight: 700; position: relative; z-index: 1; }
+  .hero-tag {
+    position: relative; z-index: 1;
+    min-height: 1.6em;
+    font-size: 1.15rem;
+    max-width: 620px;
+    opacity: 0.95;
+  }
+  .hero-tag .cursor { animation: blink 0.8s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .hero-links { position: relative; z-index: 1; margin-top: 1.5rem; font-size: 0.9rem; }
+  .hero-links code {
+    background: rgba(255,255,255,0.18);
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+  .hero-links a { color: #fff; text-decoration: underline; }
+
+  .btn-outline-light {
+    position: relative; z-index: 1;
+    margin-top: 1.75rem;
+    font: inherit;
+    font-weight: 600;
+    background: transparent;
+    color: #fff;
+    border: 2px solid #fff;
+    padding: 0.6rem 1.5rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.25s, color 0.25s;
+  }
+  .btn-outline-light:hover:not(:disabled) { background: #fff; color: #1a1a1a; }
+  .btn-outline-light:disabled { opacity: 0.6; cursor: default; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }
   code {
     background: var(--bg-soft);
     padding: 0.15em 0.4em;
@@ -40,17 +106,6 @@
   a { color: var(--accent); }
   section { margin-top: 2.5rem; }
   h2 { font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-
-  button {
-    font: inherit;
-    background: var(--accent);
-    color: white;
-    border: none;
-    padding: 0.55rem 1.1rem;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  button:disabled { opacity: 0.5; cursor: default; }
 
   #demo-result { margin-top: 1rem; }
   .pill {
@@ -72,6 +127,11 @@
     border-radius: 8px;
     padding: 0.85rem 1rem;
     margin-bottom: 0.6rem;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+  .event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 1rem 2rem rgba(0,0,0,0.12);
   }
   .event-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .event-doc { font-weight: 600; }
@@ -88,37 +148,71 @@
     white-space: pre-wrap;
   }
   #empty { color: var(--muted); font-style: italic; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; text-align: center; }
 </style>
 </head>
 <body>
-  <h1>DocPulse</h1>
-  <p class="tag">A doc-sync agent: watches merged pull requests, figures out which docs are
-  affected by the code that changed, and uses an LLM to regenerate just the stale parts —
-  then opens a PR with the update for human review.</p>
+  <div class="hero">
+    <div id="stars"></div>
+    <h1>DocPulse</h1>
+    <p class="hero-tag" id="hero-tag"></p>
+    <div class="hero-links">
+      <code>GET /health</code> &middot;
+      <code>POST /webhook/github</code> &middot;
+      <a href="https://github.com/AkarshSahlot/Doc-pulse">source on GitHub</a>
+    </div>
+    <button id="demo-btn" class="btn-outline-light" onclick="runDemo()">Run demo sync</button>
+  </div>
 
-  <p>
-    <code>GET /health</code> &middot;
-    <code>POST /webhook/github</code> &middot;
-    <a href="https://github.com/AkarshSahlot/Doc-pulse">source on GitHub</a>
-  </p>
+  <main>
+    <section>
+      <h2>Try it live</h2>
+      <p>The button above runs a real classify + regenerate call through the LLM against a
+      sample code change — no GitHub webhook required.</p>
+      <div id="demo-result"></div>
+    </section>
 
-  <section>
-    <h2>Try it live</h2>
-    <p>Runs a real classify + regenerate call through the LLM against a sample code change
-    (no GitHub webhook required).</p>
-    <button id="demo-btn" onclick="runDemo()">Run demo sync</button>
-    <div id="demo-result"></div>
-  </section>
-
-  <section>
-    <h2>Recent activity</h2>
-    <div id="events"><p id="empty">Loading…</p></div>
-  </section>
+    <section>
+      <h2>Recent activity</h2>
+      <div id="events"><p id="empty">Loading…</p></div>
+    </section>
+  </main>
 
   <footer>Running on Fly.io</footer>
 
 <script>
+(function typeStars() {
+  function field(n, w, h) {
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      parts.push(`${Math.floor(Math.random() * w)}px ${Math.floor(Math.random() * h)}px #fff`);
+    }
+    return parts.join(", ");
+  }
+  const w = Math.max(document.documentElement.clientWidth, 800);
+  const style = document.createElement("style");
+  style.textContent = `
+    #stars { box-shadow: ${field(140, w, 900)}; }
+    #stars::after { content: ""; top: 900px; box-shadow: ${field(140, w, 900)}; }
+  `;
+  document.head.appendChild(style);
+})();
+
+(function typewriter() {
+  const text = "A doc-sync agent: watches merged pull requests, figures out which docs are "
+    + "affected by the code that changed, and uses an LLM to regenerate just the stale parts — "
+    + "then opens a PR with the update for human review.";
+  const el = document.getElementById("hero-tag");
+  let i = 0;
+  (function tick() {
+    el.innerHTML = escapeHtml(text.slice(0, i)) + '<span class="cursor">▋</span>';
+    if (i < text.length) {
+      i++;
+      setTimeout(tick, 18);
+    }
+  })();
+})();
+
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
