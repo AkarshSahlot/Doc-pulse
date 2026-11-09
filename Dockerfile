@@ -10,5 +10,6 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=build /out/docpulse-server ./docpulse-server
 COPY docpulse.yaml ./docpulse.yaml
+COPY README.md ./README.md
 EXPOSE 8080
 ENTRYPOINT ["./docpulse-server"]

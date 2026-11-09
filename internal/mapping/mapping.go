@@ -91,6 +91,23 @@ func (c *Config) DocsForAll(changedPaths []string) []Match {
 	return matches
 }
 
+// AllDocs returns every unique doc path referenced by any rule, in the order
+// each first appears.
+func (c *Config) AllDocs() []string {
+	seen := make(map[string]bool)
+	var docs []string
+	for _, rule := range c.Rules {
+		for _, doc := range rule.Docs {
+			if seen[doc] {
+				continue
+			}
+			seen[doc] = true
+			docs = append(docs, doc)
+		}
+	}
+	return docs
+}
+
 // compileGlob turns a "**"/"*" code-path glob into a regexp.
 // "**" matches any run of characters, including "/"; "*" matches any run
 // of characters within a single path segment.

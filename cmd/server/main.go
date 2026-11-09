@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +46,15 @@ func main() {
 
 	events := store.New(cfg.DataFile, 200)
 
+	var availableDocs []string
+	docSet := make(map[string]bool)
+	for _, d := range rules.AllDocs() {
+		if _, err := os.Stat(d); err == nil {
+			availableDocs = append(availableDocs, d)
+			docSet[d] = true
+		}
+	}
+
 	dryRun := os.Getenv("DOCPULSE_DRY_RUN") == "true"
 	handler := vcs.NewWebhookHandler(llmClient, rules, dryRun, events)
 
@@ -65,6 +75,24 @@ func main() {
 
 	r.GET("/api/events", func(c *gin.Context) {
 		c.JSON(http.StatusOK, events.List())
+	})
+
+	r.GET("/api/docs", func(c *gin.Context) {
+		c.JSON(http.StatusOK, availableDocs)
+	})
+
+	r.GET("/api/docs/*docpath", func(c *gin.Context) {
+		p := strings.TrimPrefix(c.Param("docpath"), "/")
+		if !docSet[p] {
+			c.JSON(http.StatusNotFound, gin.H{"error": "unknown doc"})
+			return
+		}
+		content, err := os.ReadFile(p)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read doc"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"path": p, "content": string(content)})
 	})
 
 	var demoMu sync.Mutex

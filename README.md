@@ -1,7 +1,7 @@
 # DocPulse
 
 DocPulse is a doc-sync agent: it watches merged pull requests, figures out which
-documentation files are affected by the code that changed, and uses Claude to
+documentation files are affected by the code that changed, and uses an LLM to
 regenerate just the stale parts — then opens a PR with the update for human review.
 
 The part that makes it DocPulse rather than a one-size-fits-all heuristic is
